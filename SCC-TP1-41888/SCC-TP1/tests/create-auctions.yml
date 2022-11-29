@@ -1,0 +1,48 @@
+config:
+  target: 'https://scc23appwesteurope57609.azurewebsites.net/rest'
+  plugins:
+    metrics-by-endpoint: {}
+  processor: "./test-auctions-utils.js"
+  variables:
+     metricsProcessEndpoint : "myProcessEndpoint"  # function used to aggregate endpoints for statistics
+  phases:
+  - name: "Create auctions"
+    duration: 10
+    arrivalCount: 1
+  defaults:
+    cookie:
+      scc_session: ""
+
+scenarios:
+  - name: 'Create auctions'
+    weight: 1
+    flow:
+      - function: "genNewUser"         # Generate the needed information for the user
+      - post:
+          url: "/user"
+          headers:
+            Content-Type: application/json
+            Accept: application/json
+          json:
+            id: "{{ id }}"
+            name: "{{ name }}"
+            pwd: "{{ pwd }}"
+            photoId: "{{ imageId }}"
+          afterResponse: "genNewUserReply"
+      - function: "genNewAuction"  
+      - think: 10
+      - post:
+          url: "/auction"
+          headers:
+            Content-Type: application/json
+            Accept: application/json
+          json:
+            id: "{{ idAuction }}"
+            title: "{{ title }}"
+            description: "{{ description }}"
+            photoId: "{{ photoId }}"
+            ownerId: "{{ id }}"
+            minimumBid: "{{ minimumBid }}"
+          afterResponse: "genNewAuctionReply"    
+          
+        
