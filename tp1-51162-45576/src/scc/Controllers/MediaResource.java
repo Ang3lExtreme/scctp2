@@ -1,23 +1,18 @@
 package scc.Controllers;
 
-import com.azure.core.util.BinaryData;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobContainerClientBuilder;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
 import scc.utils.Hash;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-
 import jakarta.ws.rs.core.MediaType;
 
 /**
@@ -42,16 +37,19 @@ public class MediaResource {
 	public String UploadImages(byte[] data) throws IOException {
 		// TODO: review key generation...
 		// String key = UUID.randomUUID().toString().substring(0,8);
-		String temp = "X";
+
+		String filename = Hash.of(data);
 		try {
-			File f = new File(DIR + temp);
+			File f = new File(DIR + filename);
 
 			try (FileOutputStream outputstream = new FileOutputStream(f)) {
 				outputstream.write(data);
 			}
-			return temp;
+			return filename;
 		} catch (FileNotFoundException e) {
 			throw new FileNotFoundException(e.getMessage());
+		} catch (IOException e) {
+			throw new IOException(e.getMessage());
 		}
 	}
 
