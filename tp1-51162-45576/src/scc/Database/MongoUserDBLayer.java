@@ -1,96 +1,152 @@
 package scc.Database;
 
-import com.azure.cosmos.*;
-import com.azure.cosmos.models.CosmosItemRequestOptions;
-import com.azure.cosmos.models.CosmosItemResponse;
-import com.azure.cosmos.models.CosmosQueryRequestOptions;
-import com.azure.cosmos.models.PartitionKey;
-import com.azure.cosmos.util.CosmosPagedIterable;
-import scc.Data.DAO.AuctionDAO;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
+import com.mongodb.MongoException;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.DeleteResult;
+
+import static com.mongodb.client.model.Filters.*;
+
+import javax.ws.rs.core.Response;
 import scc.Data.DAO.UserDAO;
 
 public class MongoUserDBLayer {
-    private static final String CONNECTION_URL = System.getenv("COSMOSDB_URL");
-    private static final String DB_KEY = System.getenv("COSMOSDB_KEY");
-    private static final String DB_NAME = System.getenv("COSMOSDB_DATABASE");
-    private static MongoUserDBLayer instance;
+	// https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connect/
+	// fetch your own connection string from the mongo DB connect menu online
+	// replace sccTP241888:o1f39bZM8mOMUKsZ with the user and password from your own
+	// mongo DB
+	private static final String CONNECTION_URL = "mongodb+srv://sccTP241888:o1f39bZM8mOMUKsZ@cluster0.afd7s1x.mongodb.net/?retryWrites=true&w=majority";
+	// replace this with a different DB name if necessary
+	private static final String DB_NAME = "SCCMongo";
+	// create database layer to create and update auctions
 
-    public static synchronized MongoUserDBLayer getInstance() {
-        if( instance != null)
-            return instance;
+	private static MongoUserDBLayer instance;
 
-        CosmosClient client = new CosmosClientBuilder()
-                .endpoint(CONNECTION_URL)
-                .key(DB_KEY)
-                //.directMode()
-                .gatewayMode()
-                // replace by .directMode() for better performance
-                .consistencyLevel(ConsistencyLevel.SESSION)
-                .connectionSharingAcrossClientsEnabled(true)
-                .contentResponseOnWriteEnabled(true)
-                .buildClient();
-        instance = new MongoUserDBLayer( client);
-        return instance;
+	public static synchronized MongoUserDBLayer getInstance() {
+		if (instance != null) {
+			return instance;
+		}
 
-    }
+		MongoClientURI connectionString = new MongoClientURI(CONNECTION_URL);
+		MongoClient client = new MongoClient(connectionString);
 
-    private CosmosClient client;
-    private CosmosDatabase db;
-    private CosmosContainer users;
+		try {
+			instance = new MongoUserDBLayer(client);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return instance;
 
-    public MongoUserDBLayer(CosmosClient client) {
-        this.client = client;
-    }
+	}
 
+	private MongoClient client;
+	private MongoDatabase db;
+	private MongoCollection<Document> users;
 
-    private synchronized void init() {
-        if( db != null)
-            return;
-        db = client.getDatabase(DB_NAME);
-        users = db.getContainer("users");
+	public MongoUserDBLayer(MongoClient client) {
+		this.client = client;
+	}
 
-    }
+	private synchronized void init() {
+		if (db != null)
+			return;
+		db = client.getDatabase(DB_NAME);
+		users = db.getCollection("users");
 
-    public CosmosItemResponse<Object> delUserById(String id) {
-        init();
-        PartitionKey key = new PartitionKey( id);
-        return users.deleteItem(id, key, new CosmosItemRequestOptions());
-    }
+	}
 
-    public CosmosItemResponse<Object> delUser(UserDAO user) {
-        init();
-        return users.deleteItem(user, new CosmosItemRequestOptions());
-    }
+	public Response delUserById(String id) {
+		init();
 
-    public CosmosItemResponse<UserDAO> putUser(UserDAO user) {
-        init();
-        return users.createItem(user);
-    }
+		Bson query = eq("_id", id);
+		try {
+			DeleteResult result = users.deleteOne(query);
+			if (result.wasAcknowledged()) {
+				return Response.ok().build();
+			} else {
+				return Response.noContent().build();
+			}
 
-    public CosmosItemResponse<UserDAO> updateUser(UserDAO user) {
-        init();
-        return users.upsertItem(user);
-    }
+		} catch (MongoException e) {
+			System.err.println("Could not delete, error: " + e);
+		}
 
-    public CosmosPagedIterable<UserDAO> getUserById( String id) {
-        init();
-        return users.queryItems("SELECT * FROM users WHERE users.id=\"" + id + "\"", new CosmosQueryRequestOptions(), UserDAO.class);
-    }
+		return Response.ok().build();
+	}
 
-    public CosmosPagedIterable<UserDAO> getUsers() {
-        init();
-        return users.queryItems("SELECT * FROM users ", new CosmosQueryRequestOptions(), UserDAO.class);
-    }
+	public Response delUser(UserDAO user) {
+		init();
 
-    public CosmosPagedIterable<UserDAO> getUserByNickname(String nickname){
-        init();
-        return users.queryItems("SELECT * FROM users WHERE users.nickname=\"" + nickname + "\"", new CosmosQueryRequestOptions(), UserDAO.class);
-    }
+		Bson query = eq("_id", user.getId());
+		try {
+			DeleteResult result = users.deleteOne(query);
+			if (result.wasAcknowledged()) {
+				return Response.ok().build();
+			} else {
+				return Response.noContent().build();
+			}
 
+		} catch (MongoException e) {
+			System.err.println("Could not delete, error: " + e);
+		}
 
-    public void close() {
-        client.close();
-    }
+		return Response.ok().build();
+	}
 
+	public Response putUser(UserDAO user) {
+		init();
+		Document doc = toBsonDoc(user);
+		users.insertOne(doc);
+		return Response.ok().build();
+	}
 
+	public Response updateUser(UserDAO user) {
+		init();
+		Bson query = eq("_id", user.getId());
+		Document auct = toBsonDoc(user);
+		users.replaceOne(query, auct);
+		return Response.ok().build();
+	}
+
+	public FindIterable<Document> getUserById(String id) {
+		init();
+		Bson query = eq("_id", id);
+		FindIterable<Document> iterable = users.find(query);
+		return iterable;
+	}
+
+	public FindIterable<Document> getUsers() {
+		init();
+		FindIterable<Document> iterable = users.find();
+		return iterable;
+	}
+
+	public FindIterable<Document> getUserByNickname(String nickname) {
+		init();
+		Bson query = eq("nickname", nickname);
+		FindIterable<Document> iterable = users.find(query);
+		return iterable;
+		
+	}
+
+	public void close() {
+		client.close();
+	}
+
+	private static final Document toBsonDoc(UserDAO user) {
+		Document doc;
+		doc = new Document("_id", user.getId());
+		doc.append("name", user.getName());
+		doc.append("nickname", user.getNickname());
+		doc.append("password", user.getPwd());
+		doc.append("photo", user.getPhotoId());
+		return doc;
+	}
 }

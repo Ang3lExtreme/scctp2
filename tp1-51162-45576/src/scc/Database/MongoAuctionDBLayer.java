@@ -1,27 +1,17 @@
 package scc.Database;
 
-import com.azure.cosmos.*;
-import com.azure.cosmos.models.CosmosItemResponse;
-import com.azure.cosmos.models.CosmosQueryRequestOptions;
-import com.azure.cosmos.util.CosmosPagedIterable;
-import com.mongodb.BasicDBObject;
-import com.mongodb.DB;
-import com.mongodb.DBCollection;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
-import com.mongodb.WriteResult;
+
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
+
 import com.mongodb.client.MongoDatabase;
 import static com.mongodb.client.model.Filters.*;
 
 import scc.Data.DAO.AuctionDAO;
 
 import java.sql.Timestamp;
-import java.util.Date;
 
 import javax.ws.rs.core.Response;
 
@@ -139,6 +129,7 @@ public class MongoAuctionDBLayer {
 
 	public FindIterable<Document> getAuctionsToClose() {
 		init();
+		//TODO: review this document saved items may not work the same for this particular query...
 		// get all auctions that are less than 1 hour away from and are not closed
 		Timestamp timestamp = new Timestamp(System.currentTimeMillis() + 3600000);
 		Bson query = lt("endtime", timestamp.getTime());

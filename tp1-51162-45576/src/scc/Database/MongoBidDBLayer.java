@@ -6,32 +6,24 @@ import javax.ws.rs.core.Response;
 
 import org.bson.Document;
 import org.bson.conversions.Bson;
-
-import com.azure.cosmos.*;
-import com.azure.cosmos.models.CosmosItemResponse;
-import com.azure.cosmos.models.CosmosQueryRequestOptions;
-import com.azure.cosmos.util.CosmosPagedIterable;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
-
-import scc.Data.DAO.AuctionDAO;
 import scc.Data.DAO.BidDAO;
 
 public class MongoBidDBLayer {
 	// https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connect/
 	// fetch your own connection string from the mongo DB connect menu online
-	// replace sccTP241888:o1f39bZM8mOMUKsZ with the user and password from your own
-	// mongo DB
+	// replace sccTP241888:o1f39bZM8mOMUKsZ with the user and password from your own when you have your own string
 	private static final String CONNECTION_URL = "mongodb+srv://sccTP241888:o1f39bZM8mOMUKsZ@cluster0.afd7s1x.mongodb.net/?retryWrites=true&w=majority";
 	// replace this with a different DB name if necessary
 	private static final String DB_NAME = "SCCMongo";
 	// create database layer to create and update auctions
-	private static MongoAuctionDBLayer instance;
+	private static MongoBidDBLayer instance;
 
-	public static synchronized MongoAuctionDBLayer getInstance() {
+	public static synchronized MongoBidDBLayer getInstance() {
 		if (instance != null) {
             return instance;
         }
@@ -40,7 +32,7 @@ public class MongoBidDBLayer {
         MongoClient client = new MongoClient(connectionString);
 
         try {
-			instance = new MongoAuctionDBLayer(client);
+			instance = new MongoBidDBLayer(client);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

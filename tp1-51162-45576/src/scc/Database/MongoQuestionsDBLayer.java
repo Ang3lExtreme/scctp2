@@ -1,44 +1,55 @@
 package scc.Database;
 
-import com.azure.cosmos.*;
-import com.azure.cosmos.models.CosmosItemResponse;
-import com.azure.cosmos.models.CosmosQueryRequestOptions;
-import com.azure.cosmos.util.CosmosPagedIterable;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+
+import javax.ws.rs.core.Response;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
 import scc.Data.DAO.QuestionsDAO;
 
 //same as CosmosBidDBLayer
 public class MongoQuestionsDBLayer {
 
-    private static final String CONNECTION_URL = System.getenv("COSMOSDB_URL");
-    private static final String DB_KEY = System.getenv("COSMOSDB_KEY");
-    private static final String DB_NAME = System.getenv("COSMOSDB_DATABASE");
-
+	// https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connect/
+		// fetch your own connection string from the mongo DB connect menu online
+		// replace sccTP241888:o1f39bZM8mOMUKsZ with the user and password from your own
+		// mongo DB
+		private static final String CONNECTION_URL = "mongodb+srv://sccTP241888:o1f39bZM8mOMUKsZ@cluster0.afd7s1x.mongodb.net/?retryWrites=true&w=majority";
+		// replace this with a different DB name if necessary
+		private static final String DB_NAME = "SCCMongo";
+		// create database layer to create and update auctions
 
     private static MongoQuestionsDBLayer instance;
 
     public static synchronized MongoQuestionsDBLayer getInstance() {
-        if( instance != null)
-            return instance;
+    	if (instance != null) {
+			return instance;
+		}
 
-        CosmosClient client = new CosmosClientBuilder()
-                .endpoint(CONNECTION_URL)
-                .key(DB_KEY)
-                //.directMode()
-                .gatewayMode()
-                // replace by .directMode() for better performance
-                .consistencyLevel(ConsistencyLevel.SESSION)
-                .connectionSharingAcrossClientsEnabled(true)
-                .contentResponseOnWriteEnabled(true)
-                .buildClient();
-        instance = new MongoQuestionsDBLayer( client);
-        return instance;
+		MongoClientURI connectionString = new MongoClientURI(CONNECTION_URL);
+		MongoClient client = new MongoClient(connectionString);
+
+		try {
+			instance = new MongoQuestionsDBLayer(client);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return instance;
 
     }
-    private CosmosClient client;
-    private CosmosDatabase db;
-    private CosmosContainer questions;
+    private MongoClient client;
+    private MongoDatabase db;
+    private MongoCollection<Document> questions;
 
-    public MongoQuestionsDBLayer(CosmosClient client) {
+    public MongoQuestionsDBLayer(MongoClient client) {
         this.client = client;
     }
 
@@ -46,32 +57,48 @@ public class MongoQuestionsDBLayer {
         if( db != null)
             return;
         db = client.getDatabase(DB_NAME);
-        questions = db.getContainer("questions");
+        questions = db.getCollection("questions");
     }
 
-    public CosmosItemResponse<QuestionsDAO> putQuestion(QuestionsDAO question) {
-        init();
-        return questions.createItem(question);
+    public Response putQuestion(QuestionsDAO question) {
+    	init();
+		Document doc = toBsonDoc(question);
+		questions.insertOne(doc);
+		return Response.ok().build();
     }
 
-
-
-    public CosmosPagedIterable<QuestionsDAO> getQuestionById(String auctionId,String questionId) {
+    public FindIterable<Document> getQuestionById(String auctionId,String questionId) {
         init();
-        return questions.queryItems("SELECT * FROM questions q WHERE q.auctionId = '" + auctionId + "' AND q.id = '" + questionId + "'", new CosmosQueryRequestOptions(), QuestionsDAO.class);
+        Bson query = and(eq("_id", questionId),eq("auction", auctionId));
+        FindIterable<Document> iterable = questions.find(query);
+        return iterable;
     }
 
-    public CosmosPagedIterable<QuestionsDAO> getQuestions(String auctionId) {
-        init();
-        return questions.queryItems("SELECT * FROM questions q WHERE q.auctionId = '" + auctionId + "'", new CosmosQueryRequestOptions(), QuestionsDAO.class);
+    public FindIterable<Document> getQuestions(String auctionId) {
+    	init();
+        Bson query = eq("auction", auctionId);
+        FindIterable<Document> iterable = questions.find(query);
+        return iterable;
     }
     public void close() {
         client.close();
     }
 
-
-    public CosmosItemResponse<QuestionsDAO> replyQuestion(QuestionsDAO qu) {
+    public Response replyQuestion(QuestionsDAO qu) {
         init();
-        return questions.upsertItem(qu);
+		Bson query = eq("_id", qu.getId());
+		Document question = toBsonDoc(qu);
+		questions.replaceOne(query, question);
+		return Response.ok().build();
     }
+    
+    private static final Document toBsonDoc(QuestionsDAO question) {
+		Document doc;
+		doc = new Document("_id", question.getId());
+		doc.append("auction", question.getAuctionId());
+		doc.append("user", question.getUserId());
+		doc.append("message", question.getMessage());
+		doc.append("reply", question.getReply());
+		return doc;
+	}
 }
