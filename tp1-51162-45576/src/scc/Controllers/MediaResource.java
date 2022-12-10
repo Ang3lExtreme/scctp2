@@ -22,12 +22,12 @@ import jakarta.ws.rs.core.MediaType;
 public class MediaResource {
 	public static final String DIR = "/mnt/vol";
 
-	Map<String, byte[]> map = new HashMap<String, byte[]>();
-	String storageConnectionString = System.getenv("BlobStoreConnection");
-	BlobContainerClient containerClientImages = new BlobContainerClientBuilder()
-			.connectionString(storageConnectionString).containerName("images").buildClient();
+	//Map<String, byte[]> map = new HashMap<String, byte[]>();
+	//String storageConnectionString = System.getenv("BlobStoreConnection");
+	//BlobContainerClient containerClientImages = new BlobContainerClientBuilder()
+	//	.connectionString(storageConnectionString).containerName("images").buildClient();
 
-	BlobClient blob;
+	//BlobClient blob;
 
 	// upload image
 	@POST
