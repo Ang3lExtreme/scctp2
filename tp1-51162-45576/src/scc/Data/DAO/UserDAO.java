@@ -12,7 +12,6 @@ public class UserDAO {
     private String _ts;
     private String id;
     private String name;
-
     private String nickname;
     private String pwd;
     private String photoId;

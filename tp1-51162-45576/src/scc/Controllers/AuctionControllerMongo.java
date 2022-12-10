@@ -1,42 +1,47 @@
 package scc.Controllers;
 
-import com.azure.cosmos.CosmosClient;
-import com.azure.cosmos.CosmosClientBuilder;
-import com.azure.cosmos.models.CosmosItemResponse;
-import com.azure.cosmos.util.CosmosPagedIterable;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
+import com.mongodb.client.FindIterable;
+
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import redis.clients.jedis.Jedis;
 import scc.Data.DAO.AuctionDAO;
-import scc.Data.DAO.UserDAO;
 import scc.Data.DTO.Auction;
 import scc.Data.DTO.Session;
 import scc.Data.DTO.Status;
-import scc.Database.CosmosAuctionDBLayer;
-import scc.Database.CosmosUserDBLayer;
+import scc.Database.MongoAuctionDBLayer;
+import scc.Database.MongoUserDBLayer;
 import scc.cache.RedisCache;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import org.bson.Document;
 
 import static scc.mgt.AzureManagement.USE_CACHE;
 
 //testing
 @Path("/auction")
-public class AuctionController {
+public class AuctionControllerMongo {
 
-    private static final String CONNECTION_URL = System.getenv("COSMOSDB_URL");
-    private static final String DB_KEY = System.getenv("COSMOSDB_KEY");
+	// https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connect/
+		// fetch your own connection string from the mongo DB connect menu online
+		// replace sccTP241888:o1f39bZM8mOMUKsZ with the user and password from your own
+		// mongo DB
+		private static final String CONNECTION_URL = "mongodb+srv://sccTP241888:o1f39bZM8mOMUKsZ@cluster0.afd7s1x.mongodb.net/?retryWrites=true&w=majority";
+		// replace this with a different DB name if necessary
+
     private Jedis jedis;
-    CosmosClient cosmosClient = new CosmosClientBuilder()
-            .endpoint(CONNECTION_URL)
-            .key(DB_KEY)
-            .buildClient();
+    
+
+    MongoClientURI connectionString = new MongoClientURI(CONNECTION_URL);
+	MongoClient client = new MongoClient(connectionString);
 
     private synchronized void initCache() {
         if(jedis != null)
@@ -44,8 +49,8 @@ public class AuctionController {
         jedis = RedisCache.getCachePool().getResource();
     }
 
-    CosmosAuctionDBLayer cosmos =  new CosmosAuctionDBLayer(cosmosClient);
-    CosmosUserDBLayer cosmosUser = new CosmosUserDBLayer(cosmosClient);
+    MongoAuctionDBLayer mongo =  new MongoAuctionDBLayer(client);
+    MongoUserDBLayer mongoUser = new MongoUserDBLayer(client);
 
     @POST()
     @Path("/")
@@ -71,21 +76,22 @@ public class AuctionController {
         String userk = "user:" + auction.getOwnerId();
 
         if(!(USE_CACHE && jedis.exists(userk))) {
-            CosmosPagedIterable<UserDAO> user = cosmosUser.getUserById(auction.getOwnerId());
+            FindIterable<Document> user = mongoUser.getUserById(auction.getOwnerId());
             if (!user.iterator().hasNext()) {
                 throw new WebApplicationException("Owner does not exist", 404);
             }
         }
 
         if(!(USE_CACHE && jedis.exists(auk))) {
-            CosmosPagedIterable<AuctionDAO> auctionDAO = cosmos.getAuctionById(auction.getAuctionId());
+            FindIterable<Document> auctionDAO = mongo.getAuctionById(auction.getAuctionId());
             if (auctionDAO.iterator().hasNext()) {
                 throw new WebApplicationException("Auction already exists", 409);
             }
         } else
             throw new WebApplicationException("Auction already exists", 409);
 
-        CosmosItemResponse<AuctionDAO> response = cosmos.putAuction(au);
+        @SuppressWarnings("unused")
+		javax.ws.rs.core.Response response = mongo.putAuction(au);
 
         if(USE_CACHE) {
             ObjectMapper mapper = new ObjectMapper();
@@ -102,18 +108,19 @@ public class AuctionController {
     public Auction updateAuction(@CookieParam("scc:session") Cookie session, @PathParam("id") String id, Auction auction) throws JsonProcessingException {
         initCache();
         String key = "auc:" + auction.getAuctionId();
-        AuctionDAO auc = null;
-
+        Document auc = null;
+        AuctionDAO auc2 = documentToDAO(auc);
         if(USE_CACHE) {
             if(jedis.exists(key)) {
                 String s = jedis.get(key);
                 ObjectMapper mapper = new ObjectMapper();
-                auc = mapper.readValue(s, AuctionDAO.class);
+                
+                auc2 = mapper.readValue(s, AuctionDAO.class);
             }
         }
 
         if(auc == null) {
-            CosmosPagedIterable<AuctionDAO> aucDB = cosmos.getAuctionById(id);
+            FindIterable<Document> aucDB = mongo.getAuctionById(id);
 
             if (!aucDB.iterator().hasNext()) {
                 throw new WebApplicationException("Auction dont exists", 404);
@@ -126,12 +133,13 @@ public class AuctionController {
                 auction.getImageId(), auction.getOwnerId(), auction.getEndTime(), auction.getMinPrice(), auction.getWinnerId(), auction.getStatus());
 
         Session s = new Session();
-        String res = s.checkCookieUser(session, auc.getOwnerId());
+        String res = s.checkCookieUser(session, auc2.getOwnerId());
         if(!"ok".equals(res))
             throw new WebApplicationException(res, Response.Status.UNAUTHORIZED);
 
-        verifyAuction(auc, auction);
-        CosmosItemResponse<AuctionDAO> response = cosmos.updateAuction(newau);
+        verifyAuction(auc2, auction);
+        @SuppressWarnings("unused")
+		javax.ws.rs.core.Response response = mongo.updateAuction(newau);
 
         if(USE_CACHE) {
             ObjectMapper mapper = new ObjectMapper();
@@ -157,11 +165,12 @@ public class AuctionController {
             auctionList = mapper.readValue(s, List.class);
         } else {
             //get auctions to close
-            CosmosPagedIterable<AuctionDAO> auctions = cosmos.getAuctionsToClose();
+            FindIterable<Document> auctions = mongo.getAuctionsToClose();
 
-            for(AuctionDAO auction : auctions){
-                auctionList.add(new Auction(auction.getId(), auction.getTitle(), auction.getDescription(),
-                        auction.getImageId(), auction.getOwnerId(), auction.getEndTime(), auction.getMinPrice(), auction.getWinnerId(), auction.getStatus()));
+            for(Document auction : auctions){
+    
+                auctionList.add(new Auction(auction.getString("_id"), auction.getString("title"), auction.getString("description"),
+                        auction.getString("image"), auction.getString("seller"), auction.getDate("endtime"), (float)auction.get("minimumprice"), auction.getString("winner"), (Status)auction.get("status")));
             }
         }
 
@@ -190,11 +199,11 @@ public class AuctionController {
 
     private void verifyAuction(AuctionDAO auctionToEdit, Auction edit){
         //if ownerid or winnerid dont exist, return error
-        CosmosPagedIterable<UserDAO> user = cosmosUser.getUserById(edit.getOwnerId());
+        FindIterable<Document> user = mongoUser.getUserById(edit.getOwnerId());
         if(!user.iterator().hasNext()){
             throw new WebApplicationException("Owner does not exist", 404);
         }
-        user = cosmosUser.getUserById(edit.getWinnerId());
+        user = mongoUser.getUserById(edit.getWinnerId());
         if(!user.iterator().hasNext()){
             throw new WebApplicationException("Winner does not exist", 404);
         }
@@ -222,6 +231,22 @@ public class AuctionController {
         }
 
     }
-
+    
+    private static final AuctionDAO documentToDAO(Document auction) {
+		AuctionDAO auc;
+		auc = new AuctionDAO();
+		auc.setId(auction.getString("_id"));
+		auc.set_rid(auction.getString("rid"));
+		auc.set_ts(auction.getString("ts"));
+		auc.setOwnerId(auction.getString("seller"));
+		auc.setTitle(auction.getString("title"));
+		auc.setDescription(auction.getString("description"));
+		auc.setImageId(auction.getString("image"));
+		auc.Date(auction.getString("endtime"));
+		auc.setMinPrice((float)auction.get("minimumprice"));
+		auc.setStatus((Status)auction.get("status"));
+		auc.setWinnerId(auction.getString("winner"));
+		return auc;
+	}
 
 }

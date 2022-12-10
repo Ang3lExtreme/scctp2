@@ -96,6 +96,8 @@ public class MongoBidDBLayer {
     	doc.append("user", bid.getUserId());
     	doc.append("value", bid.getValue());
     	doc.append("time", bid.getTime());
+    	doc.append("rid", bid.get_rid());
+    	doc.append("ts", bid.get_ts());
     	return doc;
     }
 

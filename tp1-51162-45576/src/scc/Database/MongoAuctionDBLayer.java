@@ -2,7 +2,7 @@ package scc.Database;
 
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
-
+import scc.utils.*;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 
@@ -75,7 +75,7 @@ public class MongoAuctionDBLayer {
 
 	public Response putAuction(AuctionDAO auction) {
 		init();
-		Document doc = toBsonDoc(auction);
+		Document doc = auctionToBsonDoc(auction);
 		auctions.insertOne(doc);
 		return Response.ok().build();
 	}
@@ -83,7 +83,7 @@ public class MongoAuctionDBLayer {
 	public Response updateAuction(AuctionDAO auction) {
 		init();
 		Bson query = eq("_id", auction.getId());
-		Document auct = toBsonDoc(auction);
+		Document auct = auctionToBsonDoc(auction);
 		auctions.replaceOne(query, auct);
 		return Response.ok().build();
 	}
@@ -113,8 +113,8 @@ public class MongoAuctionDBLayer {
 	public void close() {
 		client.close();
 	}
-
-	private static final Document toBsonDoc(AuctionDAO auction) {
+	
+	public Document auctionToBsonDoc(AuctionDAO auction) {
 		Document doc;
 		doc = new Document("_id", auction.getId());
 		doc.append("seller", auction.getOwnerId());
@@ -124,6 +124,9 @@ public class MongoAuctionDBLayer {
 		doc.append("endtime", auction.getEndTime());
 		doc.append("minimumprice", auction.getMinPrice());
 		doc.append("status", auction.getStatus());
+		doc.append("winner", auction.getWinnerId());
+		doc.append("ts", auction.get_ts());
+		doc.append("rid", auction.get_rid());
 		return doc;
 	}
 

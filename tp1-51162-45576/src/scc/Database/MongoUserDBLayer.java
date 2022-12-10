@@ -143,6 +143,8 @@ public class MongoUserDBLayer {
 	private static final Document toBsonDoc(UserDAO user) {
 		Document doc;
 		doc = new Document("_id", user.getId());
+		doc.append("rid", user.get_rid());
+		doc.append("ts", user.get_ts());
 		doc.append("name", user.getName());
 		doc.append("nickname", user.getNickname());
 		doc.append("password", user.getPwd());

@@ -1,11 +1,10 @@
 package scc.Controllers;
 
-import com.azure.cosmos.CosmosClient;
-import com.azure.cosmos.CosmosClientBuilder;
-import com.azure.cosmos.models.CosmosItemResponse;
-import com.azure.cosmos.util.CosmosPagedIterable;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
+import com.mongodb.client.FindIterable;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
@@ -13,42 +12,49 @@ import jakarta.ws.rs.core.Response;
 import redis.clients.jedis.Jedis;
 import scc.Data.DAO.AuctionDAO;
 import scc.Data.DAO.BidDAO;
-import scc.Data.DAO.UserDAO;
 import scc.Data.DTO.Auction;
 import scc.Data.DTO.Bid;
 import scc.Data.DTO.Session;
-import scc.Database.CosmosAuctionDBLayer;
-import scc.Database.CosmosBidDBLayer;
-import scc.Database.CosmosUserDBLayer;
+import scc.Data.DTO.Status;
+import scc.Database.MongoAuctionDBLayer;
+import scc.Database.MongoBidDBLayer;
+import scc.Database.MongoUserDBLayer;
 import scc.cache.RedisCache;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
+import org.bson.Document;
+
 import static scc.mgt.AzureManagement.USE_CACHE;
 
 @Path("/auction/{id}/bid")
-public class BidController {
+public class BidControllerMongo {
     @PathParam("id")
     private String id;
-    //create Bid and list all bids for auction
-    private static final String CONNECTION_URL = System.getenv("COSMOSDB_URL");
-    private static final String DB_KEY = System.getenv("COSMOSDB_KEY");
-    CosmosClient cosmosClient = new CosmosClientBuilder()
-            .endpoint(CONNECTION_URL)
-            .key(DB_KEY)
-            .buildClient();
+
+ // https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connect/
+ 		// fetch your own connection string from the mongo DB connect menu online
+ 		// replace sccTP241888:o1f39bZM8mOMUKsZ with the user and password from your own
+ 		// mongo DB
+ 		private static final String CONNECTION_URL = "mongodb+srv://sccTP241888:o1f39bZM8mOMUKsZ@cluster0.afd7s1x.mongodb.net/?retryWrites=true&w=majority";
+ 		// replace this with a different DB name if necessary
 
     private Jedis jedis;
+
+    MongoClientURI connectionString = new MongoClientURI(CONNECTION_URL);
+	MongoClient client = new MongoClient(connectionString);
+
     private synchronized void initCache() {
         if(jedis != null)
             return;
         jedis = RedisCache.getCachePool().getResource();
     }
 
-    CosmosBidDBLayer cosmos =  new CosmosBidDBLayer(cosmosClient);
-    CosmosAuctionDBLayer cosmosAuction = new CosmosAuctionDBLayer(cosmosClient);
-
-    CosmosUserDBLayer cosmosUser = new CosmosUserDBLayer(cosmosClient);
+    MongoBidDBLayer mongo =  new MongoBidDBLayer(client);
+    MongoAuctionDBLayer mongoAuction = new MongoAuctionDBLayer(client);
+    MongoUserDBLayer mongoUser = new MongoUserDBLayer(client);
 
     @POST
     @Path("/")
@@ -70,11 +76,11 @@ public class BidController {
 
         if(true) {   //!(USE_CACHE && jedis.exists("auc:" + id))
             //id auction dont exist
-            CosmosPagedIterable<AuctionDAO> auction = cosmosAuction.getAuctionById(id);
+            FindIterable<Document> auction = mongoAuction.getAuctionById(id);
             if (!auction.iterator().hasNext()) {
                 throw new WebApplicationException("Auction does not exist", 404);
             }
-            auctionDAO = auction.iterator().next();
+            auctionDAO = documentToDAOAuction(auction.iterator().next());
 
 
 
@@ -87,7 +93,7 @@ public class BidController {
 
         if(!(USE_CACHE && jedis.exists("user:" + b.getUserId()))) {
             //check if user is exist
-            CosmosPagedIterable<UserDAO> userDAO = cosmosUser.getUserById(b.getUserId());
+            FindIterable<Document> userDAO = mongoUser.getUserById(b.getUserId());
             if (!userDAO.iterator().hasNext()) {
                 throw new WebApplicationException("User does not exist", 404);
             }
@@ -99,7 +105,7 @@ public class BidController {
 
         if(!(USE_CACHE && jedis.exists("bid:" + bid.getId()))) {
             //if bid exists, return error
-            CosmosPagedIterable<BidDAO> bidDAO = cosmos.getBidById(bid.getId(), bid.getAuctionId());
+            FindIterable<Document> bidDAO = mongo.getBidById(bid.getId(), bid.getAuctionId());
             if (bidDAO.iterator().hasNext()) {
                 throw new WebApplicationException("Bid already exists", 409);
             }
@@ -107,7 +113,8 @@ public class BidController {
 
         verifyBid(auctionDTO,bid);
 
-        CosmosItemResponse<BidDAO> response = cosmos.putBid(b);
+        @SuppressWarnings("unused")
+		javax.ws.rs.core.Response response = mongo.putBid(b);
 
         if(USE_CACHE) {
             ObjectMapper mapper = new ObjectMapper();
@@ -121,17 +128,18 @@ public class BidController {
     @Path("/")
     @Produces(MediaType.APPLICATION_JSON)
     public List<Bid> listBids() {
-        CosmosPagedIterable<AuctionDAO> auction = cosmosAuction.getAuctionById(id);
+        FindIterable<Document> auction = mongoAuction.getAuctionById(id);
         if(!auction.iterator().hasNext()){
             throw new WebApplicationException("Auction does not exist", 404);
         }
         //list bids
-        CosmosPagedIterable<BidDAO> bids = cosmos.getBids(id);
+        FindIterable<Document> bids = mongo.getBids(id);
         //if auction doesnt exist, return error
 
         List<Bid> bidList = new ArrayList<>();
-        for (BidDAO bid : bids) {
-            bidList.add(new Bid(bid.getId(), bid.getAuctionId(), bid.getUserId(), bid.getTime(),bid.getValue()));
+        for (Document bid : bids) {
+        	BidDAO tbid = documentToDAOBid(bid);
+            bidList.add(new Bid(tbid.getId(), tbid.getAuctionId(), tbid.getUserId(), tbid.getTime(),tbid.getValue()));
         }
         return bidList;
     }
@@ -161,14 +169,15 @@ public class BidController {
     //return bid that have lowest _ts
     private Bid getLastBid(){
 
-        CosmosPagedIterable<BidDAO> bids = cosmos.getBids(id);
+        FindIterable<Document> bids = mongo.getBids(id);
         BidDAO lastBid = null;
-        for (BidDAO bid : bids) {
+        for (Document bid : bids) {
+        	BidDAO tbid = documentToDAOBid(bid);
             if(lastBid == null){
-                lastBid = bid;
+                lastBid = tbid;
             }else{
-                if(Integer.parseInt(bid.get_ts()) > Integer.parseInt(lastBid.get_ts())){
-                    lastBid =bid;
+                if(Integer.parseInt(tbid.get_ts()) > Integer.parseInt(lastBid.get_ts())){
+                    lastBid =tbid;
                 }
             }
         }
@@ -181,4 +190,35 @@ public class BidController {
         return bid;
 
     }
+    
+    private static final BidDAO documentToDAOBid(Document bid) {
+    	BidDAO dao;
+    	dao = new BidDAO();
+    	dao.setId(bid.getString("_id"));
+    	dao.set_ts(bid.getString("ts"));
+    	dao.set_rid(bid.getString("rid"));
+    	dao.setAuctionId(bid.getString("auction"));
+    	dao.setUserId(bid.getString("user"));
+    	dao.setValue((float)bid.get("value"));
+    	dao.setTime(bid.getDate(dao));	
+    	return dao;
+    }
+    
+    private static final AuctionDAO documentToDAOAuction(Document auction) {
+		AuctionDAO auc;
+		auc = new AuctionDAO();
+		auc.setId(auction.getString("_id"));
+		auc.setOwnerId(auction.getString("seller"));
+		auc.setTitle(auction.getString("title"));
+		auc.setDescription(auction.getString("description"));
+		auc.setImageId(auction.getString("image"));
+		auc.Date(auction.getString("endtime"));
+		auc.setMinPrice((float)auction.get("minimumprice"));
+		auc.setStatus((Status)auction.get("status"));
+		auc.setWinnerId(auction.getString("winner"));
+		auc.set_rid(auction.getString("rid"));
+		auc.set_ts(auction.getString("ts"));
+		return auc;
+	}
+    
 }

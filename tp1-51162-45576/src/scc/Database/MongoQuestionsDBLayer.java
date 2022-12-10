@@ -99,6 +99,8 @@ public class MongoQuestionsDBLayer {
 		doc.append("user", question.getUserId());
 		doc.append("message", question.getMessage());
 		doc.append("reply", question.getReply());
+		doc.append("ts", question.get_ts());
+		doc.append("rid", question.get_rid());
 		return doc;
 	}
 }
