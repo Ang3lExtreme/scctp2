@@ -9,7 +9,6 @@ public class QuestionsDAO {
     private String auctionId;
     private String userId;
     private String message;
-
     private String reply = null;
 
     public QuestionsDAO(String id, String auctionId, String userId, String message) {
@@ -23,8 +22,6 @@ public class QuestionsDAO {
     public QuestionsDAO(){
 
     }
-
-
 
     public QuestionsDAO(Questions q){
         this(q.getId(),q.getAuctionId(), q.getUserId(), q.getMessage());

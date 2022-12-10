@@ -141,7 +141,6 @@ public class AuctionController {
 
         return auction;
 
-
     }
 
     //get Auctions about to close
