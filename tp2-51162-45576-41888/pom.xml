@@ -3,12 +3,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>pt.unl.fct.di.scc</groupId>
-	<artifactId>scc2223-tp1</artifactId>
+	<artifactId>scc2223-tp2</artifactId>
 	<version>1.0</version>
 	<packaging>war</packaging>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<authors>51162-55903-45576</authors>
+		<authors>51162-41888-45576</authors>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -88,12 +88,6 @@
 			<artifactId>azure</artifactId>
 			<version>1.41.4</version>
 		</dependency>
-		<!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.datatype/jackson-datatype-jsr310 -->
-		<dependency>
-			<groupId>com.fasterxml.jackson.datatype</groupId>
-			<artifactId>jackson-datatype-jsr310</artifactId>
-			<version>2.14.0-rc2</version>
-		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.datatype/jackson-datatype-jsr310 -->
 		<dependency>
@@ -172,10 +166,10 @@
 							</resource>
 						</resources>
 					</deployment>
-					<resourceGroup>scc23rgwesteurope51162</resourceGroup>
-					<appName>scc23appwesteurope51162</appName>
-					<!--resourceGroup>scc23rgeastus51162</resourceGroup>
-          <appName>scc23appeastus51162</appName-->
+					<resourceGroup>scc23rgwesteurope45576</resourceGroup>
+					<appName>scc23appwesteurope45576</appName>
+					<!--resourceGroup>scc23rgeastus45576</resourceGroup>
+          			<appName>scc23appeastus45576</appName-->
 				</configuration>
 			</plugin>
 		</plugins>
