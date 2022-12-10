@@ -108,3 +108,19 @@ spec:
   resources:
     requests:
       storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: timerfunctions
+spec:
+  schedule: "*/5 * * * *" # Run every 5 minutes
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: cronjob
+              image: rgenovevo/scc2223-app:latest
+              imagePullPolicy: IfNotPresent
+          restartPolicy: OnFailure

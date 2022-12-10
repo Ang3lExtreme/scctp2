@@ -1,4 +1,4 @@
-package scc.Main;
+package main.java.scc.Main;
 
 import com.azure.cosmos.CosmosClient;
 import com.azure.cosmos.CosmosClientBuilder;
@@ -53,5 +53,7 @@ public class Main {
 
         System.out.println("Timer trigger function executed at: " + System.currentTimeMillis());
         //System.out.println("Closed " + counter + " auctions");
+
+        System.exit(0);
     }
 }
