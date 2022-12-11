@@ -121,6 +121,6 @@ spec:
         spec:
           containers:
             - name: cronjob
-              image: rgenovevo/scc2223-app:latest
+              image: rgenovevo/cronjobs:latest
               imagePullPolicy: IfNotPresent
           restartPolicy: OnFailure
